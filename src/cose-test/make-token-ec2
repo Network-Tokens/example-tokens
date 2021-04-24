@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+
+from cbor2 import dumps, loads
+from cose import SymmetricKey, Sign1Message, CoseAlgorithms, KeyOps, \
+    CoseHeaderKeys, EC2, CoseEllipticCurves
+from cose.keys.cosekey import CoseKey, KTY
+from itertools import zip_longest
+import time
+
+
+ONE_WEEK = 60 * 60 * 24 * 7
+
+
+def group(n, iterable, fillvalue=None): 
+    args = [iter(iterable)] * n
+    return zip_longest(fillvalue=fillvalue, *args)
+
+def dump_c_hex(data):
+    return ', '.join([''.join(['0x', *x]) for x in group(2, data.hex())])
+
+cose_key = EC2.generate_key(algorithm=CoseAlgorithms.ES512,
+        key_ops=KeyOps.SIGN, curve_type=CoseEllipticCurves.P_521)
+
+cwetoken1 = Sign1Message(
+    {CoseHeaderKeys.ALG: CoseAlgorithms.ES512},
+    {},
+    dumps({
+        'bip': '10.0.0.208',
+        'exp': int(time.time() + ONE_WEEK),
+        'sid': 97046299,
+    })
+).encode(cose_key)
+
+# Encode the public key in a CBOR array
+pubkey_encoded = dumps([cose_key.x, cose_key.y])
+
+pubkey_decoded = loads(pubkey_encoded)
+pubkey = EC2.from_cose_key_obj({
+    CoseKey.Common.KTY: KTY.EC2,
+    CoseKey.Common.ALG: CoseAlgorithms.ES512,
+    EC2.EC2Prm.X: pubkey_decoded[0],
+    EC2.EC2Prm.Y: pubkey_decoded[1],
+})
+
+decoded = Sign1Message.decode(cwetoken1)
+valid = decoded.verify_signature(pubkey)
+
+print("=========================================================")
+print("PUB:      %s" % pubkey_encoded.hex())
+print("PRIV:     %s" % cose_key.d.hex())
+print("VALID:    %s" % valid)
+print("PAYLOAD:  %s" % loads(decoded.payload))
+print("=========================================================")

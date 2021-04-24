@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+from binascii import unhexlify, hexlify
+
+from cose.messages import Sign1Message, CoseMessage
+from cose.keys import CoseKey, EC2Key
+from cose.headers import Algorithm, KID
+from cose.algorithms import EdDSA, Es512
+from cose.curves import Ed25519
+from cose.keys.keyparam import KpKty, OKPKpD, OKPKpX, KpKeyOps, OKPKpCurve
+from cose.keys.keytype import KtyOKP
+from cose.keys.keyops import SignOp, VerifyOp
+from cbor2 import dumps
+import time
+
+
+ONE_WEEK = 60 * 60 * 24 * 7
+
+
+payload = dumps({
+    'bip': '10.100.1.101',
+    'exp': int(time.time() + ONE_WEEK),
+    'sid': 97046299,
+})
+
+msg = Sign1Message(
+    phdr={Algorithm: Es512},
+    uhdr={},
+    payload=payload
+)
+
+key = EC2Key.generate_key(crv='P_521')
+
+msg.key = key
+encoded = msg.encode()
+
+import pdb
+pdb.set_trace()
+
+print("=========================================================")
+print("CWE KEY :   %s" % key.k.hex())
+print("CWE TOKEN 1: %s" % encoded.hex())
+print("=========================================================")
