@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
+from binascii import unhexlify
 from cbor2 import dumps, loads
 from cose import SymmetricKey, Sign1Message, CoseAlgorithms, KeyOps, \
     CoseHeaderKeys, EC2, CoseEllipticCurves
 from cose.keys.cosekey import CoseKey, KTY
 from itertools import zip_longest
+import socket
+import struct
 import time
 
 
@@ -18,23 +21,11 @@ def group(n, iterable, fillvalue=None):
 def dump_c_hex(data):
     return ', '.join([''.join(['0x', *x]) for x in group(2, data.hex())])
 
-cose_key = EC2.generate_key(algorithm=CoseAlgorithms.ES256,
-        key_ops=KeyOps.SIGN, curve_type=CoseEllipticCurves.P_256)
 
-cwetoken1 = Sign1Message(
-    {CoseHeaderKeys.ALG: CoseAlgorithms.ES256},
-    {},
-    dumps({
-        'bip': '10.0.0.208',
-        'exp': int(time.time() + ONE_WEEK),
-        'sid': 97046299,
-    })
-).encode(cose_key)
+pub = '825820a71c9819f57f1af3fddd3ee7143cdb9605c10f941e09683f3ab2fc173a7fef6658209e0a5a4233c597da563090a82f49ce23533f5d44902a5611c1491c9bf8fea17e'
+token = 'd28443a10126a05829a4636269701a0a640065636578701a60884a9f63656e766364657664746965726866726f6e74656e6458405b9724ead9e2575f8480b8d93994ee6f274c053bbdae0251da96257d1950e70ce9fd680e87f2104c9e2068a8131686a5563335162a257164b6500f15a0d60c3a'
 
-# Encode the public key in a CBOR array
-pubkey_encoded = dumps([cose_key.x, cose_key.y])
-
-pubkey_decoded = loads(pubkey_encoded)
+pubkey_decoded = loads(unhexlify(pub))
 pubkey = EC2.from_cose_key_obj({
     CoseKey.Common.KTY: KTY.EC2,
     CoseKey.Common.ALG: CoseAlgorithms.ES256,
@@ -42,14 +33,15 @@ pubkey = EC2.from_cose_key_obj({
     EC2.EC2Prm.Y: pubkey_decoded[1],
 })
 
-decoded = Sign1Message.decode(cwetoken1)
+decoded = Sign1Message.decode(unhexlify(token))
 valid = decoded.verify_signature(pubkey)
+payload = loads(decoded.payload)
+payload['bip'] = socket.inet_ntoa(struct.pack("!I", payload['bip']))
 
 print("=========================================================")
-print("PUB:    %s" % pubkey_encoded.hex())
-print("PRIV:   %s" % cose_key.d.hex())
-print("TOKEN:  %s" % cwetoken1.hex())
+print("PUB:     %s" % pub)
+print("TOKEN:   %s" % token)
+print("VALID:   %s" % valid)
+print("PAYLOAD: %s" % payload)
+print("LEN:     %s" % len(unhexlify(token)))
 print("=========================================================")
-
-import pdb
-pdb.set_trace()

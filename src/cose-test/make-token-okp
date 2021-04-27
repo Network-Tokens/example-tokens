@@ -2,7 +2,7 @@
 
 from cbor2 import dumps, loads
 from cose import SymmetricKey, Sign1Message, CoseAlgorithms, KeyOps, \
-    CoseHeaderKeys, EC2, CoseEllipticCurves
+    CoseHeaderKeys, EC2, CoseEllipticCurves, OKP
 from cose.keys.cosekey import CoseKey, KTY
 from itertools import zip_longest
 import time
@@ -18,11 +18,11 @@ def group(n, iterable, fillvalue=None):
 def dump_c_hex(data):
     return ', '.join([''.join(['0x', *x]) for x in group(2, data.hex())])
 
-cose_key = EC2.generate_key(algorithm=CoseAlgorithms.ES256,
-        key_ops=KeyOps.SIGN, curve_type=CoseEllipticCurves.P_256)
+cose_key = OKP.generate_key(algorithm=CoseAlgorithms.EDDSA,
+        key_ops=KeyOps.SIGN)
 
 cwetoken1 = Sign1Message(
-    {CoseHeaderKeys.ALG: CoseAlgorithms.ES256},
+    {CoseHeaderKeys.ALG: CoseAlgorithms.EDDSA},
     {},
     dumps({
         'bip': '10.0.0.208',
@@ -32,24 +32,19 @@ cwetoken1 = Sign1Message(
 ).encode(cose_key)
 
 # Encode the public key in a CBOR array
-pubkey_encoded = dumps([cose_key.x, cose_key.y])
+pubkey = cose_key.x
 
-pubkey_decoded = loads(pubkey_encoded)
-pubkey = EC2.from_cose_key_obj({
-    CoseKey.Common.KTY: KTY.EC2,
-    CoseKey.Common.ALG: CoseAlgorithms.ES256,
-    EC2.EC2Prm.X: pubkey_decoded[0],
-    EC2.EC2Prm.Y: pubkey_decoded[1],
+pubkey = OKP.from_cose_key_obj({
+    CoseKey.Common.KTY: KTY.OKP,
+    CoseKey.Common.ALG: CoseAlgorithms.EDDSA,
+    OKP.OKPPrm.X: pubkey,
 })
 
 decoded = Sign1Message.decode(cwetoken1)
 valid = decoded.verify_signature(pubkey)
 
 print("=========================================================")
-print("PUB:    %s" % pubkey_encoded.hex())
+print("PUB:    %s" % pubkey.hex())
 print("PRIV:   %s" % cose_key.d.hex())
 print("TOKEN:  %s" % cwetoken1.hex())
 print("=========================================================")
-
-import pdb
-pdb.set_trace()

@@ -21,9 +21,11 @@ include_directories(
 )
 
 add_executable( cose-test main.cc )
+add_executable( cose-test-ec2 ec2.cc )
 target_link_libraries(
     cose-test
     "-L${COSE_PREFIX}/lib"
     "-L${COSE_PREFIX}/dist/lib"
 )
 target_link_libraries( cose-test -lcose-c -lcn-cbor )
+target_link_libraries( cose-test-ec2 -lcose-c -lcn-cbor )
